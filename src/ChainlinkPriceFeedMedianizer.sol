@@ -61,7 +61,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
     uint128 private medianPrice;
     uint32  public  lastUpdateTime;
 
-    bytes32 public constant symbol = "ethusd"; // You want to change this every deployment
+    bytes32 public symbol = "ethusd"; // You want to change this every deployment
 
     constructor(address aggregator) public {
         authorizedAccounts[msg.sender] = 1;
