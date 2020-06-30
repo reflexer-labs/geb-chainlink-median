@@ -32,17 +32,17 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
     }
     function testFail_negative_price_feed() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
-        aggregator.modifyParameters("latestAnswer", int(-1.1 ether));
+        aggregator.modifyParameters("latestAnswer", int(-1.1 * 10 ** 8));
 
         chainlinkMedianizer.updateResult();
     }
     function testFail_null_timestamp() public {
-        aggregator.modifyParameters("latestAnswer", int(1.1 ether));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
         chainlinkMedianizer.updateResult();
     }
     function testFail_new_timestamp_smaller_than_last() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
-        aggregator.modifyParameters("latestAnswer", int(1.1 ether));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
         chainlinkMedianizer.updateResult();
 
@@ -51,7 +51,7 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
     }
     function test_update_result_and_read() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
-        aggregator.modifyParameters("latestAnswer", int(1.1 ether));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
         chainlinkMedianizer.updateResult();
         assertEq(chainlinkMedianizer.read(), 1.1 ether);

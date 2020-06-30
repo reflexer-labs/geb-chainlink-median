@@ -60,12 +60,21 @@ contract ChainlinkPriceFeedMedianizer is Logging {
 
     uint128 private medianPrice;
     uint32  public  lastUpdateTime;
+    uint8   public  multiplier = 10;  // default multiplier for Chainlink USD feeds
 
-    bytes32 public symbol = "ethusd"; // You want to change this every deployment
+    bytes32 public symbol = "ethusd"; // you want to change this every deployment
 
     constructor(address aggregator) public {
+        require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
         authorizedAccounts[msg.sender] = 1;
         chainlinkAggregator = AggregatorInterface(aggregator);
+    }
+
+    // --- Math ---
+    function multiply(uint x, int y) internal pure returns (int z) {
+        z = int(x) * y;
+        require(int(x) >= 0);
+        require(y == 0 || z / y == int(x));
     }
 
     // --- Administration ---
@@ -88,7 +97,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
         uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
         require(aggregatorPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");
         require(aggregatorTimestamp > 0 && aggregatorTimestamp >= lastUpdateTime, "ChainlinkPriceFeedMedianizer/invalid-timestamp");
-        medianPrice = uint128(aggregatorPrice);
+        medianPrice    = uint128(multiply(uint(aggregatorPrice), int256(10 ** uint(multiplier))));
         lastUpdateTime = uint32(aggregatorTimestamp);
     }
 }
