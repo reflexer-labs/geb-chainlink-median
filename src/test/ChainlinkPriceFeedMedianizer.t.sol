@@ -2,6 +2,8 @@ pragma solidity ^0.6.7;
 
 import "ds-test/test.sol";
 
+import "./geb/MockTreasury.sol";
+
 import "../ChainlinkPriceFeedMedianizer.sol";
 
 contract ChainlinkAggregator {
@@ -19,10 +21,24 @@ contract ChainlinkAggregator {
 contract ChainlinkPriceFeedMedianizerTest is DSTest {
     ChainlinkAggregator aggregator;
     ChainlinkPriceFeedMedianizer chainlinkMedianizer;
+    MockTreasury treasury;
+    DSToken rai;
+
+    uint256 callerReward    = 15 ether;
+    uint256 initTokenAmount = 100000000 ether;
 
     function setUp() public {
         aggregator = new ChainlinkAggregator();
-        chainlinkMedianizer = new ChainlinkPriceFeedMedianizer(address(aggregator));
+
+        // Create token
+        rai = new DSToken("RAI");
+        rai.mint(initTokenAmount);
+
+        // Create treasury
+        treasury = new MockTreasury(address(rai));
+        rai.transfer(address(treasury), 100 * callerReward);
+
+        chainlinkMedianizer = new ChainlinkPriceFeedMedianizer(address(aggregator), address(treasury), callerReward);
     }
 
     function test_change_aggregator_address() public {
