@@ -45,6 +45,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
      */
     function addAuthorization(address account) external emitLog isAuthorized {
         authorizedAccounts[account] = 1;
+        emit AddAuthorization(account);
     }
     /**
      * @notice Remove auth from an account
@@ -52,6 +53,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
      */
     function removeAuthorization(address account) external emitLog isAuthorized {
         authorizedAccounts[account] = 0;
+        emit RemoveAuthorization(account);
     }
     /**
     * @notice Checks whether msg.sender can call an authed function
@@ -77,6 +79,8 @@ contract ChainlinkPriceFeedMedianizer is Logging {
     event ModifyParameters(bytes32 parameter, address addr);
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event RewardCaller(address feeReceiver, uint256 updateCallerReward);
+    event AddAuthorization(address account);
+    event RemoveAuthorization(address account);
 
     constructor(address aggregator, address treasury_, uint256 updateCallerReward_) public {
         require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
