@@ -86,6 +86,11 @@ contract ChainlinkPriceFeedMedianizer is Logging {
         chainlinkAggregator = AggregatorInterface(aggregator);
     }
 
+    // --- General Utils ---
+    function either(bool x, bool y) internal pure returns (bool z) {
+        assembly{ z := or(x, y)}
+    }
+
     // --- Math ---
     function multiply(uint x, int y) internal pure returns (int z) {
         z = int(x) * y;

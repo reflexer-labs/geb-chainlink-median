@@ -1,6 +1,7 @@
 pragma solidity ^0.6.7;
 
 import "ds-test/test.sol";
+import "ds-token/token.sol";
 
 import "./geb/MockTreasury.sol";
 
@@ -36,7 +37,7 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
 
         // Create treasury
         treasury = new MockTreasury(address(rai));
-        rai.transfer(address(treasury), 100 * callerReward);
+        rai.transfer(address(treasury), initTokenAmount);
 
         chainlinkMedianizer = new ChainlinkPriceFeedMedianizer(address(aggregator), address(treasury), callerReward);
     }
@@ -50,30 +51,46 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(-1.1 * 10 ** 8));
 
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
     }
     function testFail_null_timestamp() public {
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
     }
     function testFail_new_timestamp_smaller_than_last() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
 
         aggregator.modifyParameters("latestTimestamp", uint(now - 1));
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
     }
     function test_update_result_and_read() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
         assertEq(chainlinkMedianizer.read(), 1.1 ether);
         assertEq(chainlinkMedianizer.lastUpdateTime(), now);
 
-        chainlinkMedianizer.updateResult();
+        chainlinkMedianizer.updateResult(address(this));
         assertEq(chainlinkMedianizer.lastUpdateTime(), now);
+    }
+    function test_reward_caller_other() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer.updateResult(address(0x123));
+
+        assertEq(rai.balanceOf(address(0x123)), callerReward);
+    }
+    function test_reward_caller_null_param() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer.updateResult(address(0));
+
+        assertEq(rai.balanceOf(address(this)), callerReward);
     }
 }
