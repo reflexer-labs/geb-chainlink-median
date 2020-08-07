@@ -75,7 +75,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
     StabilityFeeTreasuryLike public treasury;
 
     event ModifyParameters(bytes32 parameter, address addr);
-    event LogMedianPrice(uint256 medianPrice, uint256 lastUpdateTime);
+    event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
     event RewardCaller(address feeReceiver, uint256 updateCallerReward);
 
     constructor(address aggregator, address treasury_, uint256 updateCallerReward_) public {
@@ -137,7 +137,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
         require(aggregatorTimestamp > 0 && aggregatorTimestamp >= lastUpdateTime, "ChainlinkPriceFeedMedianizer/invalid-timestamp");
         medianPrice    = uint128(multiply(uint(aggregatorPrice), int256(10 ** uint(multiplier))));
         lastUpdateTime = uint32(aggregatorTimestamp);
-        emit LogMedianPrice(medianPrice, lastUpdateTime);
+        emit UpdateResult(medianPrice, lastUpdateTime);
         rewardCaller(feeReceiver);
     }
 }
