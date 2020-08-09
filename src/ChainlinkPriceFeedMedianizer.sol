@@ -88,6 +88,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
         treasury = StabilityFeeTreasuryLike(treasury_);
         updateCallerReward = updateCallerReward_;
         chainlinkAggregator = AggregatorInterface(aggregator);
+        emit AddAuthorization(msg.sender);
     }
 
     // --- General Utils ---
