@@ -89,6 +89,7 @@ contract ChainlinkPriceFeedMedianizer is Logging {
         updateCallerReward = updateCallerReward_;
         chainlinkAggregator = AggregatorInterface(aggregator);
         emit AddAuthorization(msg.sender);
+        emit ModifyParameters(bytes32("treasury"), treasury_);
     }
 
     // --- General Utils ---
