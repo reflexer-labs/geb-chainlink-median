@@ -53,7 +53,7 @@ contract ChainlinkPriceFeedMedianizer {
     uint256 public linkAggregatorTimestamp;
     // Last timestamp when the median was updated
     uint256 public  lastUpdateTime;                 // [unix timestamp]
-    // Multiplier for the Chainlink price feed in order to scaled it to 18 decimals. Default to 8 for USD price feeds
+    // Multiplier for the Chainlink price feed in order to scaled it to 18 decimals. Default to 10 for USD price feeds
     uint8   public  multiplier = 10;
 
     // You want to change these every deployment
