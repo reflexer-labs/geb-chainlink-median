@@ -78,6 +78,7 @@ contract ChainlinkPriceFeedMedianizer {
       uint256 maxUpdateCallerReward_,
       uint256 perSecondCallerRewardIncrease_
     ) public {
+        require(aggregator != address(0), "ChainlinkPriceFeedMedianizer/null-aggregator");
         require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
         require(maxUpdateCallerReward_ > baseUpdateCallerReward_, "ChainlinkPriceFeedMedianizer/invalid-max-reward");
         require(perSecondCallerRewardIncrease_ >= RAY, "ChainlinkPriceFeedMedianizer/invalid-reward-increase");
