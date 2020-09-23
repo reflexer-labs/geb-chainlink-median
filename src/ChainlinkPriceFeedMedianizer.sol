@@ -95,6 +95,9 @@ contract ChainlinkPriceFeedMedianizer {
         maxRewardIncreaseDelay         = uint(-1);
         emit AddAuthorization(msg.sender);
         emit ModifyParameters(bytes32("treasury"), treasury_);
+        emit ModifyParameters(bytes32("maxRewardIncreaseDelay"), uint(-1));
+        emit ModifyParameters(bytes32("periodSize"), periodSize);
+        emit ModifyParameters(bytes32("aggregator"), aggregator);
         emit ModifyParameters(bytes32("baseUpdateCallerReward"), baseUpdateCallerReward);
         emit ModifyParameters(bytes32("maxUpdateCallerReward"), maxUpdateCallerReward);
         emit ModifyParameters(bytes32("perSecondCallerRewardIncrease"), perSecondCallerRewardIncrease);
