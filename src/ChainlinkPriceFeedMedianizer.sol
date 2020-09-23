@@ -56,7 +56,9 @@ contract ChainlinkPriceFeedMedianizer {
     // Multiplier for the Chainlink price feed in order to scaled it to 18 decimals. Default to 8 for USD price feeds
     uint8   public  multiplier = 10;
 
-    bytes32 public symbol = "ethusd"; // you want to change this every deployment
+    // You want to change these every deployment
+    uint256 public staleThreshold = 3;
+    bytes32 public symbol         = "ethusd";
 
     // SF treasury contract
     StabilityFeeTreasuryLike public treasury;
@@ -101,6 +103,9 @@ contract ChainlinkPriceFeedMedianizer {
     // --- General Utils ---
     function either(bool x, bool y) internal pure returns (bool z) {
         assembly{ z := or(x, y)}
+    }
+    function both(bool x, bool y) internal pure returns (bool z) {
+        assembly{ z := and(x, y)}
     }
 
     // --- Math ---
@@ -183,12 +188,12 @@ contract ChainlinkPriceFeedMedianizer {
     }
 
     function read() external view returns (uint256) {
-        require(medianPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");
+        require(both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)), "ChainlinkPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
 
     function getResultWithValidity() external view returns (uint256,bool) {
-        return (medianPrice, medianPrice > 0);
+        return (medianPrice, both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)));
     }
 
     // --- Treasury Utils ---
@@ -231,7 +236,7 @@ contract ChainlinkPriceFeedMedianizer {
         int256 aggregatorPrice = chainlinkAggregator.latestAnswer();
         uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
         require(aggregatorPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");
-        require(aggregatorTimestamp > 0 && aggregatorTimestamp >= linkAggregatorTimestamp, "ChainlinkPriceFeedMedianizer/invalid-timestamp");
+        require(aggregatorTimestamp > 0 && aggregatorTimestamp > linkAggregatorTimestamp, "ChainlinkPriceFeedMedianizer/invalid-timestamp");
         uint256 callerReward    = getCallerReward();
         medianPrice             = multiply(uint(aggregatorPrice), 10 ** uint(multiplier));
         linkAggregatorTimestamp = aggregatorTimestamp;

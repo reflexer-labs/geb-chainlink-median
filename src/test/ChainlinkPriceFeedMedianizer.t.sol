@@ -111,6 +111,8 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         assertEq(chainlinkMedianizer.read(), 1.1 ether);
         assertEq(chainlinkMedianizer.lastUpdateTime(), now);
 
+        hevm.warp(now + 1);
+        aggregator.modifyParameters("timestamp", uint(now));
         chainlinkMedianizer.updateResult(address(this));
         assertEq(chainlinkMedianizer.lastUpdateTime(), now);
     }
@@ -138,7 +140,7 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         assertEq(rai.balanceOf(address(this)), callerReward);
 
         hevm.warp(now + 1000);
-
+        aggregator.modifyParameters("timestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0));
         assertEq(rai.balanceOf(address(this)), maxCallerReward + callerReward);
     }
@@ -151,9 +153,34 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
 
         for (uint i = 0; i < 10; i++) {
           hevm.warp(now + periodSize);
+          aggregator.modifyParameters("timestamp", uint(now));
           chainlinkMedianizer.updateResult(address(0x123));
         }
 
         assertEq(rai.balanceOf(address(0x123)), callerReward * 11);
+    }
+    function testFail_read_when_stale() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer.updateResult(address(this));
+        assertEq(chainlinkMedianizer.read(), 1.1 ether);
+
+        hevm.warp(now + periodSize * chainlinkMedianizer.staleThreshold() + 1);
+        assertEq(chainlinkMedianizer.read(), 1.1 ether);
+    }
+    function test_get_result_with_validity_when_stale() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer.updateResult(address(this));
+        (uint256 price, bool valid) = chainlinkMedianizer.getResultWithValidity();
+        assertEq(price, 1.1 ether);
+        assertTrue(valid);
+
+        hevm.warp(now + periodSize * chainlinkMedianizer.staleThreshold() + 1);
+        (price, valid) = chainlinkMedianizer.getResultWithValidity();
+        assertEq(price, 1.1 ether);
+        assertTrue(!valid);
     }
 }
