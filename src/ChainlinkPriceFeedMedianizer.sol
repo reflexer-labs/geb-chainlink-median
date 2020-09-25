@@ -177,6 +177,10 @@ contract ChainlinkPriceFeedMedianizer {
           require(data > 0, "ChainlinkPriceFeedMedianizer/null-period-size");
           periodSize = data;
         }
+        else if (parameter == "staleThreshold") {
+          require(data > 1, "ChainlinkPriceFeedMedianizer/invalid-stale-threshold");
+          staleThreshold = data;
+        }
         else revert("ChainlinkPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
