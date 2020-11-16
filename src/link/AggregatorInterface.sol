@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity 0.6.7;
 
 interface AggregatorInterface {
   event AnswerUpdated(int256 indexed current, uint256 indexed roundId, uint256 timestamp);
