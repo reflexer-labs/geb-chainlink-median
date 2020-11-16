@@ -45,7 +45,7 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator = new ChainlinkAggregator();
 
         // Create token
-        rai = new DSToken("RAI");
+        rai = new DSToken("RAI", "RAI");
         rai.mint(initTokenAmount);
 
         // Create treasury
