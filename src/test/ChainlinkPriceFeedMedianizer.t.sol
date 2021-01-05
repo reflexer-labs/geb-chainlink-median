@@ -125,6 +125,21 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
 
         hevm.warp(now + 1);
     }
+    function test_reward_after_waiting_more_than_maxRewardIncreaseDelay() public {
+        chainlinkMedianizer.modifyParameters("maxRewardIncreaseDelay", periodSize * 4);
+
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(0x123)), callerReward);
+
+        hevm.warp(now + chainlinkMedianizer.maxRewardIncreaseDelay() + 1);
+
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(0x123)), callerReward + maxCallerReward);
+    }
     function test_reward_caller_null_param_first_update() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
