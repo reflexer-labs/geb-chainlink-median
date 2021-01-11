@@ -1,8 +1,10 @@
 pragma solidity 0.6.7;
 
+import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
+
 import "./link/AggregatorInterface.sol";
 
-contract ChainlinkPriceFeedMedianizer {
+contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
     // --- Variables ---
     AggregatorInterface public chainlinkAggregator;
 
@@ -31,7 +33,7 @@ contract ChainlinkPriceFeedMedianizer {
       uint256 baseUpdateCallerReward_,
       uint256 maxUpdateCallerReward_,
       uint256 perSecondCallerRewardIncrease_
-    ) public {
+    ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
         require(aggregator != address(0), "ChainlinkPriceFeedMedianizer/null-aggregator");
         require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
         require(periodSize_ > 0, "ChainlinkPriceFeedMedianizer/null-period-size");
@@ -98,14 +100,17 @@ contract ChainlinkPriceFeedMedianizer {
 
     // --- Median Updates ---
     function updateResult(address feeReceiver) external {
-        int256 aggregatorPrice = chainlinkAggregator.latestAnswer();
+        int256 aggregatorPrice      = chainlinkAggregator.latestAnswer();
         uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
+
         require(aggregatorPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");
-        require(aggregatorTimestamp > 0 && aggregatorTimestamp > linkAggregatorTimestamp, "ChainlinkPriceFeedMedianizer/invalid-timestamp");
-        uint256 callerReward    = getCallerReward();
+        require(both(aggregatorTimestamp > 0, aggregatorTimestamp > linkAggregatorTimestamp), "ChainlinkPriceFeedMedianizer/invalid-timestamp");
+
+        uint256 callerReward    = getCallerReward(lastUpdateTime, periodSize);
         medianPrice             = multiply(uint(aggregatorPrice), 10 ** uint(multiplier));
         linkAggregatorTimestamp = aggregatorTimestamp;
         lastUpdateTime          = now;
+
         emit UpdateResult(medianPrice, lastUpdateTime);
         rewardCaller(feeReceiver, callerReward);
     }
