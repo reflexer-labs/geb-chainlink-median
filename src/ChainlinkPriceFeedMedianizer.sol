@@ -38,6 +38,7 @@ contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
         require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
         require(periodSize_ > 0, "ChainlinkPriceFeedMedianizer/null-period-size");
 
+        lastUpdateTime      = now;
         periodSize          = periodSize_;
         chainlinkAggregator = AggregatorInterface(aggregator);
 

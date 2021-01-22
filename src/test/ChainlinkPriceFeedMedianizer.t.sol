@@ -184,6 +184,24 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         hevm.warp(now + periodSize * chainlinkMedianizer.staleThreshold() + 1);
         assertEq(chainlinkMedianizer.read(), 1.1 ether);
     }
+    function test_update_no_treasury_set() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
+        chainlinkMedianizer = new ChainlinkPriceFeedMedianizer(
+          address(aggregator),
+          address(0),
+          periodSize,
+          callerReward,
+          maxCallerReward,
+          perSecondCallerRewardIncrease
+        );
+        chainlinkMedianizer.updateResult(address(0x123));
+    }
+    function test_update_base_reward_zero() public {
+        chainlinkMedianizer.modifyParameters("baseUpdateCallerReward", 0);
+        chainlinkMedianizer.updateResult(address(0x123));
+    }
     function test_get_result_with_validity_when_stale() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
