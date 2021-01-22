@@ -116,14 +116,19 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         chainlinkMedianizer.updateResult(address(this));
         assertEq(chainlinkMedianizer.lastUpdateTime(), now);
     }
-    function test_reward_caller_other_first_update() public {
+    function test_reward_caller_other_first_and_second_update() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
+        // First update
+        chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(0x123)), 0);
+
+        // Second update
+        hevm.warp(now + chainlinkMedianizer.periodSize());
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0x123));
         assertEq(rai.balanceOf(address(0x123)), callerReward);
-
-        hevm.warp(now + 1);
     }
     function test_reward_after_waiting_more_than_maxRewardIncreaseDelay() public {
         chainlinkMedianizer.modifyParameters("maxRewardIncreaseDelay", periodSize * 4);
@@ -131,11 +136,18 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
+        // First update with no reward
+        chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(0x123)), 0);
+
+        // Second update starts with reward
+        hevm.warp(now + chainlinkMedianizer.periodSize());
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0x123));
         assertEq(rai.balanceOf(address(0x123)), callerReward);
 
+        // Third update
         hevm.warp(now + chainlinkMedianizer.maxRewardIncreaseDelay() + 1);
-
         aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0x123));
         assertEq(rai.balanceOf(address(0x123)), callerReward + maxCallerReward);
@@ -144,6 +156,13 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
+        // First
+        chainlinkMedianizer.updateResult(address(0));
+        assertEq(rai.balanceOf(address(this)), 0);
+
+        // Second
+        hevm.warp(now + chainlinkMedianizer.periodSize());
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0));
         assertEq(rai.balanceOf(address(this)), callerReward);
     }
@@ -151,11 +170,19 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
+        // First
+        chainlinkMedianizer.updateResult(address(0));
+        assertEq(rai.balanceOf(address(this)), 0);
+
+        // Second
+        hevm.warp(now + chainlinkMedianizer.periodSize());
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0));
         assertEq(rai.balanceOf(address(this)), callerReward);
 
+        // Third
         hevm.warp(now + 1000);
-        aggregator.modifyParameters("timestamp", uint(now));
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0));
         assertEq(rai.balanceOf(address(this)), maxCallerReward + callerReward);
     }
@@ -163,12 +190,19 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         aggregator.modifyParameters("latestTimestamp", uint(now));
         aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
 
+        // First
+        chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(0x123)), 0);
+
+        // Second
+        hevm.warp(now + chainlinkMedianizer.periodSize());
+        aggregator.modifyParameters("latestTimestamp", uint(now));
         chainlinkMedianizer.updateResult(address(0x123));
         assertEq(rai.balanceOf(address(0x123)), callerReward);
 
         for (uint i = 0; i < 10; i++) {
           hevm.warp(now + periodSize);
-          aggregator.modifyParameters("timestamp", uint(now));
+          aggregator.modifyParameters("latestTimestamp", uint(now));
           chainlinkMedianizer.updateResult(address(0x123));
         }
 
@@ -199,8 +233,12 @@ contract ChainlinkPriceFeedMedianizerTest is DSTest {
         chainlinkMedianizer.updateResult(address(0x123));
     }
     function test_update_base_reward_zero() public {
+        aggregator.modifyParameters("latestTimestamp", uint(now));
+        aggregator.modifyParameters("latestAnswer", int(1.1 * 10 ** 8));
+
         chainlinkMedianizer.modifyParameters("baseUpdateCallerReward", 0);
         chainlinkMedianizer.updateResult(address(0x123));
+        assertEq(rai.balanceOf(address(this)), 0);
     }
     function test_get_result_with_validity_when_stale() public {
         aggregator.modifyParameters("latestTimestamp", uint(now));
