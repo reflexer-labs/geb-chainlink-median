@@ -58,7 +58,7 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
       uint8   granularity_
     ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
         require(aggregator != address(0), "ChainlinkTWAP/null-aggregator");
-        require(multiplier >= 1, "ChainlinkTWAP/null-multiplier");
+        require(multiplier >= 1, "ChainlinkTWAP/null-multiplier"); // todo, include in constructor
         require(granularity_ > 1, 'ChainlinkTWAP/null-granularity');
         require(windowSize_ > 0, 'ChainlinkTWAP/null-window-size');
         require(maxWindowSize_ > windowSize_, 'ChainlinkTWAP/invalid-max-window-size');
@@ -120,9 +120,9 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
 
     // --- Administration ---
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data; // todo: add require, must be less than maxReward, check for window evenly divisible
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward");
+          require(data > baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); // todo: test for evenly divisible
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
@@ -133,7 +133,7 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
           require(data > 0, "ChainlinkTWAP/invalid-max-increase-delay");
           maxRewardIncreaseDelay = data;
         }
-        else if (parameter == "maxWindowSize") {
+        else if (parameter == "maxWindowSize") { 
           require(data > windowSize, 'ChainlinkTWAP/invalid-max-window-size');
           maxWindowSize = data;
         }
