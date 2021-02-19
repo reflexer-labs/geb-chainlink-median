@@ -347,11 +347,10 @@ contract ChainlinkTWAPTest is DSTest {
             chainlinkTwap.updateResult(alice);
 
             //check if within granularity
-            if(i > values.length - granularity)
-                converterResultCumulative += values[i] * now;
-            else if (i == values.length - granularity) {
-                periodStart = now;
-            }
+            if(i >= values.length - granularity)
+                converterResultCumulative += values[i] * intervals[i];
+            
+            periodStart = now;
 
             hevm.warp(now + intervals[i]);
         }
@@ -362,220 +361,140 @@ contract ChainlinkTWAPTest is DSTest {
     uint[] _values;
     uint[] _intervals;
     function test_read_same_price() public {
-        uint[] storage values = _values;
-        uint[] storage intervals = _intervals;
-        for (uint i = 0; i <= granularity; i++) {
+        for (uint i = 0; i <= granularity * 4; i++) {
             _values.push(uint(120 * aggregator.gwei()));
             _intervals.push(chainlinkTwap.periodSize());
         }
+        
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
-        assertEq(testMedian, chainlinkTwap.read());
+        assertEq(testMedian, chainlinkTwap.read()); // check median result
+    } 
+
+    // different approach for unit testing, will run a number of random different values (adjusted
+    // to be valid inputs) and check results. This will also randomize inputs for every run.
+    function test_read_fuzz(uint[8] memory values, uint[8] memory intervals) public {
+        for (uint i = 0; i < 8; i++) {
+            _values.push(((values[i] % 1000) + 1) * uint(aggregator.gwei())); // random values from 1 to 1001 gwei
+            _intervals.push(chainlinkTwap.periodSize());//+ (intervals[i] % chainlinkTwap.periodSize())); todo: check
+        }
+        
+        uint testMedian = simulateUpdates(_values, _intervals, granularity);
+        assertEq(testMedian, chainlinkTwap.read()); // check median result
     }
 
-    // function test_get_result_when_time_elapsed_above_max_window() public {
-    //     uniswapRAIUSDCMedianizer.modifyParameters("maxWindowSize", 25 hours);
-
-    //     simulateBothOraclesSamePricesErraticDelays();
-
-    //     (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-    //     assertTrue(!isValid);
-    //     assertEq(medianPrice, 4242000000004242000);
-    // }
-
-    // function test_simulate_same_prices() public {
-    //     simulateBothOraclesSamePrices();
-
-    //     assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative(), initETHUSDPrice * uniswapRAIWETHMedianizer.periodSize() * uniswapMedianizerGranularity);
-    //     assertEq(
-    //       uniswapRAIWETHMedianizer.converterComputeAmountOut(
-    //         uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18
-    //       ), initETHUSDPrice
-    //     );
-    //     assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative(), initUSDCUSDPrice * uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity);
-    //     assertEq(
-    //       uniswapRAIUSDCMedianizer.converterComputeAmountOut(
-    //         uniswapRAIUSDCMedianizer.periodSize() * uniswapMedianizerGranularity, 10**18
-    //       ), initUSDCUSDPrice
-    //     );
-
-    //     // Check interval
-    //     assertEq(uniswapRAIWETHMedianizer.earliestObservationIndex(), 24);
-    //     assertEq(uniswapRAIUSDCMedianizer.earliestObservationIndex(), 24);
-
-    //     (uint listLength, ) = uniswapRAIWETHMedianizer.getObservationListLength();
-    //     assertEq(listLength, 48);
-    //     (listLength, ) = uniswapRAIUSDCMedianizer.getObservationListLength();
-    //     assertEq(listLength, 48);
-
-    //     // Check time elapsed
-    //     assertEq(uniswapRAIWETHMedianizer.timeElapsedSinceFirstObservation(), 82800);
-    //     assertEq(uniswapRAIUSDCMedianizer.timeElapsedSinceFirstObservation(), 82800);
-
-    //     // Check cumulative converter price
-    //     assertEq(uniswapRAIWETHMedianizer.converterPriceCumulative() / uniswapMedianizerGranularity / (uniswapMedianizerWindowSize / uint(uniswapMedianizerGranularity)), initETHUSDPrice);
-    //     assertEq(uniswapRAIUSDCMedianizer.converterPriceCumulative() / uniswapMedianizerGranularity / (uniswapMedianizerWindowSize / uint(uniswapMedianizerGranularity)), initUSDCUSDPrice);
-
-    //     // RAI/WETH
-    //     (uint256 medianPrice, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-    //     assertTrue(isValid);
-    //     assertEq(medianPrice, 4242000000004242000);
-
-    //     // RAI/USDC
-    //     (medianPrice, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
-    //     assertTrue(isValid);
-    //     assertEq(medianPrice, 4241999999999999999);
-
-    //     uint observedPrice;
-    //     for (uint i = 0; i < uniswapMedianizerGranularity; i++) {
-    //         (, observedPrice) = uniswapRAIWETHMedianizer.converterFeedObservations(i);
-    //         assertEq(observedPrice, initETHUSDPrice * uniswapRAIWETHMedianizer.periodSize());
-    //     }
-    //     for (uint i = 0; i < uniswapMedianizerGranularity; i++) {
-    //         (, observedPrice) = uniswapRAIUSDCMedianizer.converterFeedObservations(i);
-    //         assertEq(observedPrice, initUSDCUSDPrice * uniswapRAIUSDCMedianizer.periodSize());
-    //     }
-    // }
 
 
+    function test_two_hour_twap() public {
+        // Setup
+        // Create token
+        rai = new DSToken("RAI", "RAI");
+        rai.mint(initTokenAmount);
 
-    // function test_get_result_after_passing_granularity() public {
-    //     simulateETHRAISamePrices();
-    //     simulateUSDCRAISamePrices();
+        // Create treasury
+        treasury = new MockTreasury(address(rai));
+        rai.transfer(address(treasury), initTokenAmount);
 
-    //     // RAI/WETH
-    //     (, bool isValid) = uniswapRAIWETHMedianizer.getResultWithValidity();
-    //     assertTrue(isValid);
+        chainlinkTwap = new ChainlinkTWAP(
+          address(aggregator),
+          address(treasury),
+          2 hours,
+          4 hours,
+          baseCallerReward,
+          maxCallerReward,
+          perSecondCallerRewardIncrease,
+          2
+        );
 
-    //     // RAI/USDC
-    //     (, isValid) = uniswapRAIUSDCMedianizer.getResultWithValidity();
-    //     assertTrue(isValid);
-    // }
-    // function test_read_after_passing_granularity() public {
-    //     simulateETHRAISamePrices();
-    //     simulateUSDCRAISamePrices();
+        // Setup treasury allowance
+        treasury.setTotalAllowance(address(chainlinkTwap), uint(-1));
+        treasury.setPerBlockAllowance(address(chainlinkTwap), uint(-1));
 
-    //     // RAI/WETH
-    //     uint median = uniswapRAIWETHMedianizer.read();
-    //     assertTrue(median > 0);
+        me = address(this);
 
-    //     // RAI/USDC
-    //     median = uniswapRAIUSDCMedianizer.read();
-    //     assertTrue(median > 0);
-    // }
+        hevm.warp(now + chainlinkTwap.periodSize());
 
+        // Update median
+        hevm.warp(now + 10);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
+        (, bool isValid) = chainlinkTwap.getResultWithValidity();
+        assertTrue(!isValid);
 
-    // function test_two_hour_twap() public {
-    //     // Setup
-    //     UniswapConsecutiveSlotsPriceFeedMedianizer twoHourMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
-    //         address(0x1),
-    //         address(uniswapFactory),
-    //         address(treasury),
-    //         uniswapETHRAIMedianizerDefaultAmountIn,
-    //         2 hours,
-    //         converterScalingFactor,
-    //         baseCallerReward,
-    //         maxCallerReward,
-    //         perSecondCallerRewardIncrease,
-    //         4 hours,
-    //         2
-    //     );
+        hevm.warp(now + 1 hours);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
+        (, isValid) = chainlinkTwap.getResultWithValidity();
+        assertTrue(!isValid);
 
-    //     // Set max reward increase delay
-    //     twoHourMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+        hevm.warp(now + 1 hours);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
+        (, isValid) = chainlinkTwap.getResultWithValidity();
+        assertTrue(isValid);
 
-    //     // Set treasury allowance
-    //     treasury.setTotalAllowance(address(twoHourMedianizer), uint(-1));
-    //     treasury.setPerBlockAllowance(address(twoHourMedianizer), uint(-1));
+        // Checks
+        (uint256 medianPrice,) = chainlinkTwap.getResultWithValidity();
+        assertEq(medianPrice, 240000000000); // todo: check
 
-    //     // Set converter addresses
-    //     twoHourMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
+        assertEq(chainlinkTwap.updates(), 3);
+        assertEq(chainlinkTwap.timeElapsedSinceFirstObservation(), 1 hours);
+    }
+    function test_two_hour_twap_massive_update_delay() public {
+        // Setup
+        // Create token
+        rai = new DSToken("RAI", "RAI");
+        rai.mint(initTokenAmount);
 
-    //     // Set target and denomination tokens
-    //     twoHourMedianizer.modifyParameters("targetToken", address(rai));
-    //     twoHourMedianizer.modifyParameters("denominationToken", address(weth));
+        // Create treasury
+        treasury = new MockTreasury(address(rai));
+        rai.transfer(address(treasury), initTokenAmount);
 
-    //     // Add extra liquidity
-    //     addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
+        chainlinkTwap = new ChainlinkTWAP(
+          address(aggregator),
+          address(treasury),
+          2 hours,
+          4 hours,
+          baseCallerReward,
+          maxCallerReward,
+          perSecondCallerRewardIncrease,
+          2
+        );
 
-    //     // Update median
-    //     hevm.warp(now + 10);
-    //     twoHourMedianizer.updateResult(address(this));
-    //     (, bool isValid) = twoHourMedianizer.getResultWithValidity();
-    //     assertTrue(!isValid);
+        // Setup treasury allowance
+        treasury.setTotalAllowance(address(chainlinkTwap), uint(-1));
+        treasury.setPerBlockAllowance(address(chainlinkTwap), uint(-1));
 
-    //     hevm.warp(now + 1 hours);
-    //     twoHourMedianizer.updateResult(address(this));
-    //     (, isValid) = twoHourMedianizer.getResultWithValidity();
-    //     assertTrue(!isValid);
+        me = address(this);
 
-    //     hevm.warp(now + 1 hours);
-    //     twoHourMedianizer.updateResult(address(this));
-    //     (, isValid) = twoHourMedianizer.getResultWithValidity();
-    //     assertTrue(isValid);
+        hevm.warp(now + chainlinkTwap.periodSize());
 
-    //     // Checks
-    //     (uint256 medianPrice,) = twoHourMedianizer.getResultWithValidity();
-    //     assertEq(medianPrice, 4242000000004242000);
+        // Update median
+        hevm.warp(now + 10);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
+        hevm.warp(now + 1 hours);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
+        hevm.warp(now + 3650 days);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));  // reverting, check
 
-    //     assertEq(twoHourMedianizer.updates(), 3);
-    //     assertEq(twoHourMedianizer.timeElapsedSinceFirstObservation(), 1 hours);
-    // }
-    // function test_two_hour_twap_massive_update_delay() public {
-    //     // Setup
-    //     UniswapConsecutiveSlotsPriceFeedMedianizer twoHourMedianizer = new UniswapConsecutiveSlotsPriceFeedMedianizer(
-    //         address(0x1),
-    //         address(uniswapFactory),
-    //         address(treasury),
-    //         uniswapETHRAIMedianizerDefaultAmountIn,
-    //         2 hours,
-    //         converterScalingFactor,
-    //         baseCallerReward,
-    //         maxCallerReward,
-    //         perSecondCallerRewardIncrease,
-    //         4 hours,
-    //         2
-    //     );
+        // Checks
+        (uint256 medianPrice, bool isValid) = chainlinkTwap.getResultWithValidity();
+        assertEq(medianPrice, 120000000000);
+        assertTrue(!isValid);
 
-    //     // Set max reward increase delay
-    //     twoHourMedianizer.modifyParameters("maxRewardIncreaseDelay", maxRewardDelay);
+        assertEq(chainlinkTwap.updates(), 3);
+        assertEq(chainlinkTwap.timeElapsedSinceFirstObservation(), 3650 days);
 
-    //     // Set treasury allowance
-    //     treasury.setTotalAllowance(address(twoHourMedianizer), uint(-1));
-    //     treasury.setPerBlockAllowance(address(twoHourMedianizer), uint(-1));
+        // Another update
+        hevm.warp(now + 1 hours);
+        aggregator.modifyParameters(120 * aggregator.gwei(), now);
+        chainlinkTwap.updateResult(address(this));
 
-    //     // Set converter addresses
-    //     twoHourMedianizer.modifyParameters("converterFeed", address(converterETHPriceFeed));
-
-    //     // Set target and denomination tokens
-    //     twoHourMedianizer.modifyParameters("targetToken", address(rai));
-    //     twoHourMedianizer.modifyParameters("denominationToken", address(weth));
-
-    //     // Add extra liquidity
-    //     addPairLiquidityRouter(address(rai), address(weth), initRAIETHPairLiquidity, initETHRAIPairLiquidity);
-
-    //     // Update median
-    //     hevm.warp(now + 10);
-    //     twoHourMedianizer.updateResult(address(this));
-    //     hevm.warp(now + 1 hours);
-    //     twoHourMedianizer.updateResult(address(this));
-    //     hevm.warp(now + 3650 days);
-    //     twoHourMedianizer.updateResult(address(this));
-
-    //     // Checks
-    //     (uint256 medianPrice, bool isValid) = twoHourMedianizer.getResultWithValidity();
-    //     assertEq(medianPrice, 4242000000004242000);
-    //     assertTrue(!isValid);
-
-    //     assertEq(twoHourMedianizer.updates(), 3);
-    //     assertEq(twoHourMedianizer.timeElapsedSinceFirstObservation(), 3650 days);
-
-    //     // Another update
-    //     hevm.warp(now + 1 hours);
-    //     twoHourMedianizer.updateResult(address(this));
-
-    //     // Checks
-    //     (medianPrice, isValid) = twoHourMedianizer.getResultWithValidity();
-    //     assertEq(medianPrice, 4242000000004242000);
-    //     assertTrue(isValid);
-    // }
+        // Checks
+        (medianPrice, isValid) = chainlinkTwap.getResultWithValidity();
+        assertEq(medianPrice, 120000000000);
+        assertTrue(isValid);
+    }
 }
