@@ -33,13 +33,13 @@ contract ChainlinkTWAPTest is DSTest {
     address me;
 
     uint256 startTime                     = 1577836800;
-    uint256 windowSize                    = 10;
-    uint256 maxWindowSize                 = 50;
+    uint256 windowSize                    = 1 hours;
+    uint256 maxWindowSize                 = 4 hours;
     uint256 baseCallerReward              = 15 ether;
     uint256 maxCallerReward               = 20 ether;
     uint256 initTokenAmount               = 100000000 ether;
     uint256 perSecondCallerRewardIncrease = 1.01E27;
-    uint8   granularity                   = 5;
+    uint8   granularity                   = 4;
     uint8   multiplier                    = 1;
 
 
@@ -178,7 +178,7 @@ contract ChainlinkTWAPTest is DSTest {
           baseCallerReward,
           baseCallerReward,
           perSecondCallerRewardIncrease,
-          3
+          27
         );
     }
 
@@ -378,10 +378,10 @@ contract ChainlinkTWAPTest is DSTest {
             if(i >= values.length - granularity)
                 converterResultCumulative += values[i] * intervals[i - 1];
             
-            if(i == values.length - granularity)
+            if(i == values.length - granularity - 1)
                 periodStart = now;
 
-            hevm.warp(now + intervals[i]);
+            if(i != values.length -1) hevm.warp(now + intervals[i]);
         }
 
         return converterResultCumulative / (now - periodStart);
@@ -397,6 +397,19 @@ contract ChainlinkTWAPTest is DSTest {
         
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, uint(120 * aggregator.gwei()));
+        assertEq(testMedian, chainlinkTwap.read()); // check median result
+    } 
+
+    function test_read_diff_price() public {
+        for (uint i = 0; i <= granularity * 4; i++) {
+            _values.push(uint(120 * aggregator.gwei()));
+            _intervals.push(chainlinkTwap.periodSize());
+        }
+
+        _values.push(uint(130 * aggregator.gwei()));
+        _intervals.push(chainlinkTwap.periodSize() * 2);
+        
+        uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     } 
 
