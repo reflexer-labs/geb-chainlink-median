@@ -52,13 +52,14 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
       address treasury_,
       uint256 windowSize_,
       uint256 maxWindowSize_,
+      uint8   multiplier_,
       uint256 baseUpdateCallerReward_,
       uint256 maxUpdateCallerReward_,
       uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
     ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
         require(aggregator != address(0), "ChainlinkTWAP/null-aggregator");
-        require(multiplier >= 1, "ChainlinkTWAP/null-multiplier"); // todo, include in constructor
+        require(multiplier_ >= 1, "ChainlinkTWAP/null-multiplier");
         require(granularity_ > 1, 'ChainlinkTWAP/null-granularity');
         require(windowSize_ > 0, 'ChainlinkTWAP/null-window-size');
         require(maxWindowSize_ > windowSize_, 'ChainlinkTWAP/invalid-max-window-size');
@@ -71,6 +72,7 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
         windowSize          = windowSize_;
         maxWindowSize       = maxWindowSize_;
         granularity         = granularity_;
+        multiplier          = multiplier_;
 
         chainlinkAggregator = AggregatorInterface(aggregator);
 
@@ -120,9 +122,12 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
 
     // --- Administration ---
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data; // todo: add require, must be less than maxReward, check for window evenly divisible
+        if (parameter == "baseUpdateCallerReward") {
+            require(data < maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward"); 
+            baseUpdateCallerReward = data;
+        }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); // todo: test for evenly divisible
+          require(data > baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); 
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
@@ -177,7 +182,8 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
 
     // --- Median Updates ---
     function updateResult(address feeReceiver) external {
-        uint256 elapsedTime = subtract(now, lastUpdateTime);
+        uint256 elapsedTime = (chainlinkObservations.length == 0) ?
+          subtract(now, lastUpdateTime) : subtract(now, chainlinkObservations[chainlinkObservations.length - 1].timestamp);
 
         // Check delay between calls
         require(elapsedTime >= periodSize, "ChainlinkTWAP/wait-more");

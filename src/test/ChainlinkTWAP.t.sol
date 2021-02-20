@@ -40,6 +40,8 @@ contract ChainlinkTWAPTest is DSTest {
     uint256 initTokenAmount               = 100000000 ether;
     uint256 perSecondCallerRewardIncrease = 1.01E27;
     uint8   granularity                   = 5;
+    uint8   multiplier                    = 1;
+
 
     function setUp() public {
         hevm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -60,6 +62,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           windowSize,
           maxWindowSize,
+          multiplier,
           baseCallerReward,
           maxCallerReward,
           perSecondCallerRewardIncrease,
@@ -84,7 +87,7 @@ contract ChainlinkTWAPTest is DSTest {
         assertEq(chainlinkTwap.authorizedAccounts(me), 1);
         assertEq(address(chainlinkTwap.chainlinkAggregator()), address(aggregator));
         assertEq(chainlinkTwap.linkAggregatorTimestamp(), 0);
-        assertEq(chainlinkTwap.lastUpdateTime(), now);
+        assertEq(chainlinkTwap.lastUpdateTime(), now - chainlinkTwap.periodSize());
         assertEq(chainlinkTwap.converterResultCumulative(), 0);
         assertEq(chainlinkTwap.windowSize(), windowSize);
         assertEq(chainlinkTwap.maxWindowSize(), maxWindowSize);
@@ -101,6 +104,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           windowSize,
           maxWindowSize,
+          multiplier,
           baseCallerReward,
           maxCallerReward,
           perSecondCallerRewardIncrease,
@@ -114,10 +118,25 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           windowSize,
           maxWindowSize,
+          multiplier,
           baseCallerReward,
           maxCallerReward,
           perSecondCallerRewardIncrease,
           0
+        );
+    }
+
+    function testFail_setup_null_multiplier() public {
+        chainlinkTwap = new ChainlinkTWAP(
+          address(aggregator),
+          address(treasury),
+          windowSize,
+          maxWindowSize,
+          0,
+          baseCallerReward,
+          maxCallerReward,
+          perSecondCallerRewardIncrease,
+          granularity
         );
     }
 
@@ -127,6 +146,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           0,
           maxWindowSize,
+          multiplier,
           baseCallerReward,
           baseCallerReward,
           perSecondCallerRewardIncrease,
@@ -140,6 +160,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           windowSize,
           windowSize,
+          multiplier,
           baseCallerReward,
           baseCallerReward,
           perSecondCallerRewardIncrease,
@@ -153,6 +174,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           windowSize,
           maxWindowSize,
+          multiplier,
           baseCallerReward,
           baseCallerReward,
           perSecondCallerRewardIncrease,
@@ -170,7 +192,7 @@ contract ChainlinkTWAPTest is DSTest {
         treasury = new MockTreasury(address(rai));
         chainlinkTwap.modifyParameters("treasury", address(treasury));
 
-        assertTrue(address(chainlinkTwap.chainlinkAggregator()) == address(treasury));
+        assertTrue(address(chainlinkTwap.treasury()) == address(treasury));
     }
 
     function testFail_change_treasury_coin_not_set() public {
@@ -305,14 +327,15 @@ contract ChainlinkTWAPTest is DSTest {
         uint256 converterResultCumulative = chainlinkTwap.converterResultCumulative();
 
         assertEq(uint256(chainlinkTwap.earliestObservationIndex()), 0);
-        assertEq(converterResultCumulative, 120 * 10**9 * 3599);
+        assertEq(converterResultCumulative, 120 * 10**9 * (3599 + chainlinkTwap.periodSize()));
         assertEq(medianPrice, 120 * 10**9);
         assertTrue(!isValid);
         assertEq(timestamp, now);
-        assertEq(timeAdjustedResult, 120 * 10**9 * 3599);
+        assertEq(timeAdjustedResult, 120 * 10**9 * (3599 + chainlinkTwap.periodSize()));
     }
     function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
-        hevm.warp(now + chainlinkTwap.periodSize());
+        chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks); // need to force a lower bound maxRewardIncreaseDelay or things break
+
         uint maxRewardDelay = 100;
         chainlinkTwap.updateResult(alice);
         assertEq(rai.balanceOf(alice), baseCallerReward);
@@ -331,6 +354,11 @@ contract ChainlinkTWAPTest is DSTest {
         aggregator.modifyParameters(130 * 10**9, now);
         chainlinkTwap.updateResult(address(0x1234));
         assertEq(rai.balanceOf(address(0x1234)), maxCallerReward);
+
+        hevm.warp(now + chainlinkTwap.periodSize() + chainlinkTwap.maxRewardIncreaseDelay() + 300 weeks);
+        aggregator.modifyParameters(130 * 10**9, now);
+        chainlinkTwap.updateResult(address(0x1234));
+        assertEq(rai.balanceOf(address(0x1234)), maxCallerReward * 2);
     }
 
     // will include all prices in values array, and then warp the interval value
@@ -399,6 +427,7 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           2 hours,
           4 hours,
+          multiplier,
           baseCallerReward,
           maxCallerReward,
           perSecondCallerRewardIncrease,
@@ -454,11 +483,14 @@ contract ChainlinkTWAPTest is DSTest {
           address(treasury),
           2 hours,
           4 hours,
+          multiplier,
           baseCallerReward,
           maxCallerReward,
           perSecondCallerRewardIncrease,
           2
         );
+
+        chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks); 
 
         // Setup treasury allowance
         treasury.setTotalAllowance(address(chainlinkTwap), uint(-1));
@@ -477,7 +509,7 @@ contract ChainlinkTWAPTest is DSTest {
         chainlinkTwap.updateResult(address(this));
         hevm.warp(now + 3650 days);
         aggregator.modifyParameters(120 * aggregator.gwei(), now);
-        chainlinkTwap.updateResult(address(this));  // reverting, check
+        chainlinkTwap.updateResult(address(this));
 
         // Checks
         (uint256 medianPrice, bool isValid) = chainlinkTwap.getResultWithValidity();
@@ -494,7 +526,7 @@ contract ChainlinkTWAPTest is DSTest {
 
         // Checks
         (medianPrice, isValid) = chainlinkTwap.getResultWithValidity();
-        assertEq(medianPrice, 120000000000);
+        assertEq(medianPrice, 120000000000); // bug
         assertTrue(isValid);
     }
 }
