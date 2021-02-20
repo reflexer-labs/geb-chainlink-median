@@ -197,11 +197,19 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
         // Calculate the reward
         uint256 callerReward    = getCallerReward(lastUpdateTime, periodSize);
 
+        // Get current first observation timestamp
+        uint timeSinceFirst;
+        if (updates > 0) {
+              ChainlinkObservation memory firstUniswapObservation = getFirstObservationInWindow();
+              timeSinceFirst = subtract(now, firstUniswapObservation.timestamp);
+        } else 
+          timeSinceFirst = elapsedTime;
+
         // Update the observations array
         updateObservations(elapsedTime, uint256(aggregatorResult));
 
         // Update var state
-        medianResult            = converterResultCumulative / elapsedTime;
+        medianResult            = converterResultCumulative / timeSinceFirst;
         updates                 = addition(updates, 1);
         linkAggregatorTimestamp = aggregatorTimestamp;
         lastUpdateTime          = now;

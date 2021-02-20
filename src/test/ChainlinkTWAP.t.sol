@@ -376,9 +376,10 @@ contract ChainlinkTWAPTest is DSTest {
 
             //check if within granularity
             if(i >= values.length - granularity)
-                converterResultCumulative += values[i] * intervals[i];
+                converterResultCumulative += values[i] * intervals[i - 1];
             
-            periodStart = now;
+            if(i == values.length - granularity)
+                periodStart = now;
 
             hevm.warp(now + intervals[i]);
         }
@@ -395,15 +396,18 @@ contract ChainlinkTWAPTest is DSTest {
         }
         
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
+        assertEq(testMedian, uint(120 * aggregator.gwei()));
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     } 
 
     // different approach for unit testing, will run a number of random different values (adjusted
     // to be valid inputs) and check results. This will also randomize inputs for every run.
     function test_read_fuzz(uint[8] memory values, uint[8] memory intervals) public {
+        // chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks); 
+
         for (uint i = 0; i < 8; i++) {
             _values.push(((values[i] % 1000) + 1) * uint(aggregator.gwei())); // random values from 1 to 1001 gwei
-            _intervals.push(chainlinkTwap.periodSize());//+ (intervals[i] % chainlinkTwap.periodSize())); todo: check
+            _intervals.push(chainlinkTwap.periodSize() + (intervals[i] % chainlinkTwap.periodSize())); // random values between period size up to two times the size of it
         }
         
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
@@ -463,7 +467,7 @@ contract ChainlinkTWAPTest is DSTest {
 
         // Checks
         (uint256 medianPrice,) = chainlinkTwap.getResultWithValidity();
-        assertEq(medianPrice, 240000000000); // todo: check
+        assertEq(medianPrice, uint(120 * aggregator.gwei())); 
 
         assertEq(chainlinkTwap.updates(), 3);
         assertEq(chainlinkTwap.timeElapsedSinceFirstObservation(), 1 hours);
