@@ -38,7 +38,7 @@ contract ChainlinkTWAPTest is DSTest {
     uint256 baseCallerReward              = 15 ether;
     uint256 maxCallerReward               = 20 ether;
     uint256 initTokenAmount               = 100000000 ether;
-    uint256 perSecondCallerRewardIncrease = 1.01E27;
+    uint256 perSecondCallerRewardIncrease = 1000192559420674483977255848; // 100% over one hour
     uint8   granularity                   = 4;
     uint8   multiplier                    = 1;
 
@@ -83,6 +83,7 @@ contract ChainlinkTWAPTest is DSTest {
         require(y == 0 || (z = x * y) / y == x, 'mul-overflow');
     }
 
+    // --- Tests ---
     function test_correct_setup() public {
         assertEq(chainlinkTwap.authorizedAccounts(me), 1);
         assertEq(address(chainlinkTwap.chainlinkAggregator()), address(aggregator));
@@ -111,7 +112,6 @@ contract ChainlinkTWAPTest is DSTest {
           granularity
         );
     }
-
     function testFail_setup_null_granularity() public {
         chainlinkTwap = new ChainlinkTWAP(
           address(aggregator),
@@ -125,7 +125,6 @@ contract ChainlinkTWAPTest is DSTest {
           0
         );
     }
-
     function testFail_setup_null_multiplier() public {
         chainlinkTwap = new ChainlinkTWAP(
           address(aggregator),
@@ -139,7 +138,6 @@ contract ChainlinkTWAPTest is DSTest {
           granularity
         );
     }
-
     function testFail_setup_null_window_size() public {
         chainlinkTwap = new ChainlinkTWAP(
           address(aggregator),
@@ -148,26 +146,11 @@ contract ChainlinkTWAPTest is DSTest {
           maxWindowSize,
           multiplier,
           baseCallerReward,
-          baseCallerReward,
+          maxCallerReward,
           perSecondCallerRewardIncrease,
           granularity
         );
     }
-
-    function testFail_setup_invalid_max_window_size() public {
-        chainlinkTwap = new ChainlinkTWAP(
-          address(aggregator),
-          address(treasury),
-          windowSize,
-          windowSize,
-          multiplier,
-          baseCallerReward,
-          baseCallerReward,
-          perSecondCallerRewardIncrease,
-          granularity
-        );
-    }
-
     function testFail_setup_window_not_evenly_divisible() public {
         chainlinkTwap = new ChainlinkTWAP(
           address(aggregator),
@@ -181,85 +164,69 @@ contract ChainlinkTWAPTest is DSTest {
           27
         );
     }
-
     function test_change_aggregator() public {
         chainlinkTwap.modifyParameters("aggregator", address(0x123));
 
         assertTrue(address(chainlinkTwap.chainlinkAggregator()) == address(0x123));
     }
-
     function test_change_treasury() public {
         treasury = new MockTreasury(address(rai));
         chainlinkTwap.modifyParameters("treasury", address(treasury));
 
         assertTrue(address(chainlinkTwap.treasury()) == address(treasury));
     }
-
     function testFail_change_treasury_coin_not_set() public {
         treasury = new MockTreasury(address(0));
         chainlinkTwap.modifyParameters("treasury", address(treasury));
     }
-
     function test_change_base_update_caller_reward() public {
         chainlinkTwap.modifyParameters("baseUpdateCallerReward", 1);
 
         assertEq(chainlinkTwap.baseUpdateCallerReward(), 1);
     }
-
     function testFail_change_base_update_caller_reward_more_than_max_reward() public {
         chainlinkTwap.modifyParameters("baseUpdateCallerReward", maxCallerReward + 1);
-    }    
-
+    }
     function test_change_base_update_max_caller_reward() public {
         chainlinkTwap.modifyParameters("maxUpdateCallerReward", maxCallerReward + 1 ether);
 
         assertEq(chainlinkTwap.maxUpdateCallerReward(), maxCallerReward + 1 ether);
     }
-
     function testFail_change_base_update_max_caller_reward_less_than_base_reward() public {
-        chainlinkTwap.modifyParameters("maxUpdateCallerReward", baseCallerReward);
+        chainlinkTwap.modifyParameters("maxUpdateCallerReward", baseCallerReward - 1);
     }
-
     function test_change_per_second_reward_increase() public {
         chainlinkTwap.modifyParameters("perSecondCallerRewardIncrease", 10**27);
 
         assertEq(chainlinkTwap.perSecondCallerRewardIncrease(), 10**27);
     }
-
     function testFail_change_per_second_reward_increase_less_than_ray() public {
         chainlinkTwap.modifyParameters("perSecondCallerRewardIncrease", 10**27 - 1);
     }
-
     function test_change_max_reward_increase_delay() public {
         chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 123);
 
         assertEq(chainlinkTwap.maxRewardIncreaseDelay(), 123);
     }
-
     function testFail_change_max_reward_increase_delay_zero() public {
         chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 0);
     }
-
     function test_change_max_window_size() public {
         chainlinkTwap.modifyParameters("maxWindowSize", maxWindowSize + 1);
 
         assertEq(chainlinkTwap.maxWindowSize(), maxWindowSize + 1);
     }
-
     function testFail_change_max_window_size_lower_than_window() public {
         chainlinkTwap.modifyParameters("maxWindowSize", windowSize);
     }
-
     function test_change_stale_threshold() public {
         chainlinkTwap.modifyParameters("staleThreshold", 2);
 
         assertEq(chainlinkTwap.staleThreshold(), 2);
     }
-
     function testFail_change_stale_threshold_invalid() public {
         chainlinkTwap.modifyParameters("staleThreshold", 1);
     }
-
     function testFail_read_before_passing_granularity() public {
         hevm.warp(now + 3599);
 
@@ -310,13 +277,11 @@ contract ChainlinkTWAPTest is DSTest {
         hevm.warp(now + 1);
         chainlinkTwap.updateResult(address(this));
     }
-
     function testFail_update_result_aggregator_invalid_value() public {
         aggregator.modifyParameters(0, 0);
         hevm.warp(now + 3599);
         chainlinkTwap.updateResult(address(this));
     }
-
     function test_update_result() public {
         hevm.warp(now + 3599);
 
@@ -360,7 +325,6 @@ contract ChainlinkTWAPTest is DSTest {
         chainlinkTwap.updateResult(address(0x1234));
         assertEq(rai.balanceOf(address(0x1234)), maxCallerReward * 2);
     }
-
     // will include all prices in values array, and then warp the interval value
     // last interval is not warped (so the updates are fresh)
     // returns twap for a given granularity (without accounting for too large intervals, overflows were also unnacounted for)
@@ -386,7 +350,6 @@ contract ChainlinkTWAPTest is DSTest {
 
         return converterResultCumulative / (now - periodStart);
     }
-
     uint[] _values;
     uint[] _intervals;
     function test_read_same_price() public {
@@ -399,7 +362,6 @@ contract ChainlinkTWAPTest is DSTest {
         assertEq(testMedian, uint(120 * aggregator.gwei()));
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     } 
-
     function test_read_diff_price() public {
         for (uint i = 0; i <= granularity * 4; i++) {
             _values.push(uint(120 * aggregator.gwei()));
@@ -412,7 +374,6 @@ contract ChainlinkTWAPTest is DSTest {
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     } 
-
     // different approach for unit testing, will run a number of random different values (adjusted
     // to be valid inputs) and check results. This will also randomize inputs for every run.
     function test_read_fuzz(uint[8] memory values, uint[8] memory intervals) public {
@@ -426,9 +387,6 @@ contract ChainlinkTWAPTest is DSTest {
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     }
-
-
-
     function test_two_hour_twap() public {
         // Setup
         // Create token
@@ -543,7 +501,7 @@ contract ChainlinkTWAPTest is DSTest {
 
         // Checks
         (medianPrice, isValid) = chainlinkTwap.getResultWithValidity();
-        assertEq(medianPrice, 120000000000); // bug
+        assertEq(medianPrice, 120000000000);
         assertTrue(isValid);
     }
 }

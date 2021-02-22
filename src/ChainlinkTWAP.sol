@@ -62,7 +62,6 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
         require(multiplier_ >= 1, "ChainlinkTWAP/null-multiplier");
         require(granularity_ > 1, 'ChainlinkTWAP/null-granularity');
         require(windowSize_ > 0, 'ChainlinkTWAP/null-window-size');
-        require(maxWindowSize_ > windowSize_, 'ChainlinkTWAP/invalid-max-window-size');
         require(
           (periodSize = windowSize_ / granularity_) * granularity_ == windowSize_,
           'ChainlinkTWAP/window-not-evenly-divisible'
@@ -123,11 +122,11 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     // --- Administration ---
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") {
-            require(data < maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward"); 
+            require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward"); 
             baseUpdateCallerReward = data;
         }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); 
+          require(data >= baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); 
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
