@@ -83,6 +83,36 @@ contract ChainlinkTWAPTest is DSTest {
         require(y == 0 || (z = x * y) / y == x, 'mul-overflow');
     }
 
+    // --- Utils ---
+    uint[] _values;
+    uint[] _intervals;
+
+    // will include all prices in values array, and then warp the interval value
+    // last interval is not warped (so the updates are fresh)
+    // returns twap for a given granularity (without accounting for too large intervals, overflows were also unnacounted for)
+    function simulateUpdates(uint[] memory values, uint[] memory intervals, uint8 granularity) internal returns (uint) {
+        require(values.length == intervals.length);
+        require(values.length > granularity);
+        uint converterResultCumulative;
+        uint periodStart;
+
+        for (uint i = 0; i < values.length; i++) {
+            aggregator.modifyParameters(int256(values[i]), now);
+            chainlinkTwap.updateResult(alice);
+
+            //check if within granularity
+            if(i >= values.length - granularity)
+                converterResultCumulative += values[i] * intervals[i - 1];
+
+            if(i == values.length - granularity - 1)
+                periodStart = now;
+
+            if(i != values.length -1) hevm.warp(now + intervals[i]);
+        }
+
+        return converterResultCumulative / (now - periodStart);
+    }
+
     // --- Tests ---
     function test_correct_setup() public {
         assertEq(chainlinkTwap.authorizedAccounts(me), 1);
@@ -325,43 +355,16 @@ contract ChainlinkTWAPTest is DSTest {
         chainlinkTwap.updateResult(address(0x1234));
         assertEq(rai.balanceOf(address(0x1234)), maxCallerReward * 2);
     }
-    // will include all prices in values array, and then warp the interval value
-    // last interval is not warped (so the updates are fresh)
-    // returns twap for a given granularity (without accounting for too large intervals, overflows were also unnacounted for)
-    function simulateUpdates(uint[] memory values, uint[] memory intervals, uint8 granularity) internal returns (uint) {
-        require(values.length == intervals.length);
-        require(values.length > granularity);
-        uint converterResultCumulative;
-        uint periodStart;
-
-        for (uint i = 0; i < values.length; i++) {
-            aggregator.modifyParameters(int256(values[i]), now);
-            chainlinkTwap.updateResult(alice);
-
-            //check if within granularity
-            if(i >= values.length - granularity)
-                converterResultCumulative += values[i] * intervals[i - 1];
-            
-            if(i == values.length - granularity - 1)
-                periodStart = now;
-
-            if(i != values.length -1) hevm.warp(now + intervals[i]);
-        }
-
-        return converterResultCumulative / (now - periodStart);
-    }
-    uint[] _values;
-    uint[] _intervals;
     function test_read_same_price() public {
         for (uint i = 0; i <= granularity * 4; i++) {
             _values.push(uint(120 * aggregator.gwei()));
             _intervals.push(chainlinkTwap.periodSize());
         }
-        
+
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, uint(120 * aggregator.gwei()));
         assertEq(testMedian, chainlinkTwap.read()); // check median result
-    } 
+    }
     function test_read_diff_price() public {
         for (uint i = 0; i <= granularity * 4; i++) {
             _values.push(uint(120 * aggregator.gwei()));
@@ -370,20 +373,20 @@ contract ChainlinkTWAPTest is DSTest {
 
         _values.push(uint(130 * aggregator.gwei()));
         _intervals.push(chainlinkTwap.periodSize() * 2);
-        
+
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, chainlinkTwap.read()); // check median result
-    } 
+    }
     // different approach for unit testing, will run a number of random different values (adjusted
     // to be valid inputs) and check results. This will also randomize inputs for every run.
     function test_read_fuzz(uint[8] memory values, uint[8] memory intervals) public {
-        // chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks); 
+        // chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks);
 
         for (uint i = 0; i < 8; i++) {
             _values.push(((values[i] % 1000) + 1) * uint(aggregator.gwei())); // random values from 1 to 1001 gwei
             _intervals.push(chainlinkTwap.periodSize() + (intervals[i] % chainlinkTwap.periodSize())); // random values between period size up to two times the size of it
         }
-        
+
         uint testMedian = simulateUpdates(_values, _intervals, granularity);
         assertEq(testMedian, chainlinkTwap.read()); // check median result
     }
@@ -438,7 +441,7 @@ contract ChainlinkTWAPTest is DSTest {
 
         // Checks
         (uint256 medianPrice,) = chainlinkTwap.getResultWithValidity();
-        assertEq(medianPrice, uint(120 * aggregator.gwei())); 
+        assertEq(medianPrice, uint(120 * aggregator.gwei()));
 
         assertEq(chainlinkTwap.updates(), 3);
         assertEq(chainlinkTwap.timeElapsedSinceFirstObservation(), 1 hours);
@@ -465,7 +468,7 @@ contract ChainlinkTWAPTest is DSTest {
           2
         );
 
-        chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks); 
+        chainlinkTwap.modifyParameters("maxRewardIncreaseDelay", 5 * 52 weeks);
 
         // Setup treasury allowance
         treasury.setTotalAllowance(address(chainlinkTwap), uint(-1));

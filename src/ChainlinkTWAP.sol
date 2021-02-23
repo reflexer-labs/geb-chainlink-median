@@ -120,13 +120,18 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     }
 
     // --- Administration ---
+    /*
+    * @notify Modify an uin256 parameter
+    * @param parameter The name of the parameter to change
+    * @param data The new parameter value
+    */
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") {
-            require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward"); 
+            require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward");
             baseUpdateCallerReward = data;
         }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data >= baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward"); 
+          require(data >= baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward");
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
@@ -137,7 +142,7 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
           require(data > 0, "ChainlinkTWAP/invalid-max-increase-delay");
           maxRewardIncreaseDelay = data;
         }
-        else if (parameter == "maxWindowSize") { 
+        else if (parameter == "maxWindowSize") {
           require(data > windowSize, 'ChainlinkTWAP/invalid-max-window-size');
           maxWindowSize = data;
         }
@@ -148,6 +153,11 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
         else revert("ChainlinkTWAP/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
+    /*
+    * @notify Modify an address parameter
+    * @param parameter The name of the parameter to change
+    * @param addr The new parameter address
+    */
     function modifyParameters(bytes32 parameter, address addr) external isAuthorized {
         if (parameter == "aggregator") chainlinkAggregator = AggregatorInterface(addr);
         else if (parameter == "treasury") {
@@ -180,6 +190,10 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     }
 
     // --- Median Updates ---
+    /*
+    * @notify Update the moving average
+    * @param feeReceiver The address that will receive a SF payout for calling this function
+    */
     function updateResult(address feeReceiver) external {
         uint256 elapsedTime = (chainlinkObservations.length == 0) ?
           subtract(now, lastUpdateTime) : subtract(now, chainlinkObservations[chainlinkObservations.length - 1].timestamp);
@@ -197,12 +211,13 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
         uint256 callerReward    = getCallerReward(lastUpdateTime, periodSize);
 
         // Get current first observation timestamp
-        uint timeSinceFirst;
+        uint256 timeSinceFirst;
         if (updates > 0) {
-              ChainlinkObservation memory firstUniswapObservation = getFirstObservationInWindow();
-              timeSinceFirst = subtract(now, firstUniswapObservation.timestamp);
-        } else 
+          ChainlinkObservation memory firstUniswapObservation = getFirstObservationInWindow();
+          timeSinceFirst = subtract(now, firstUniswapObservation.timestamp);
+        } else {
           timeSinceFirst = elapsedTime;
+        }
 
         // Update the observations array
         updateObservations(elapsedTime, uint256(aggregatorResult));
