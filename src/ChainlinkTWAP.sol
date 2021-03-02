@@ -127,8 +127,8 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     */
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") {
-            require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward");
-            baseUpdateCallerReward = data;
+          require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward");
+          baseUpdateCallerReward = data;
         }
         else if (parameter == "maxUpdateCallerReward") {
           require(data >= baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward");

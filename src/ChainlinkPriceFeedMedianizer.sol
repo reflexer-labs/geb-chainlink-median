@@ -53,9 +53,12 @@ contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
 
     // --- Administration ---
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") baseUpdateCallerReward = data;
+        if (parameter == "baseUpdateCallerReward") {
+          require(data <= maxUpdateCallerReward, "ChainlinkPriceFeedMedianizer/invalid-base-reward");
+          baseUpdateCallerReward = data;
+        }
         else if (parameter == "maxUpdateCallerReward") {
-          require(data > baseUpdateCallerReward, "ChainlinkPriceFeedMedianizer/invalid-max-reward");
+          require(data >= baseUpdateCallerReward, "ChainlinkPriceFeedMedianizer/invalid-max-reward");
           maxUpdateCallerReward = data;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
