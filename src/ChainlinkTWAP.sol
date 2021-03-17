@@ -1,12 +1,43 @@
 pragma solidity 0.6.7;
 
-import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
+import "geb-treasury-reimbursement/math/GebMath.sol";
 
 import "./link/AggregatorInterface.sol";
 
-contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
+abstract contract IncreasingRewardRelayerLike {
+    function reimburseCaller(address) virtual external;
+}
+
+contract ChainlinkTWAP is GebMath {
+    // --- Auth ---
+    mapping (address => uint) public authorizedAccounts;
+    /**
+     * @notice Add auth to an account
+     * @param account Account to add auth to
+     */
+    function addAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 1;
+        emit AddAuthorization(account);
+    }
+    /**
+     * @notice Remove auth from an account
+     * @param account Account to remove auth from
+     */
+    function removeAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 0;
+        emit RemoveAuthorization(account);
+    }
+    /**
+    * @notice Checks whether msg.sender can call an authed function
+    **/
+    modifier isAuthorized {
+        require(authorizedAccounts[msg.sender] == 1, "ChainlinkTWAP/account-not-authorized");
+        _;
+    }
+
     // --- Variables ---
-    AggregatorInterface public chainlinkAggregator;
+    AggregatorInterface         public chainlinkAggregator;
+    IncreasingRewardRelayerLike public rewardRelayer;
 
     // Delay between updates after which the reward starts to increase
     uint256 public periodSize;
@@ -45,19 +76,25 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     }
 
     // --- Events ---
+    event AddAuthorization(address account);
+    event RemoveAuthorization(address account);
+    event ModifyParameters(
+      bytes32 parameter,
+      address addr
+    );
+    event ModifyParameters(
+      bytes32 parameter,
+      uint256 val
+    );
     event UpdateResult(uint256 result);
 
     constructor(
       address aggregator,
-      address treasury_,
       uint256 windowSize_,
       uint256 maxWindowSize_,
       uint8   multiplier_,
-      uint256 baseUpdateCallerReward_,
-      uint256 maxUpdateCallerReward_,
-      uint256 perSecondCallerRewardIncrease_,
       uint8   granularity_
-    ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
+    ) public {
         require(aggregator != address(0), "ChainlinkTWAP/null-aggregator");
         require(multiplier_ >= 1, "ChainlinkTWAP/null-multiplier");
         require(granularity_ > 1, 'ChainlinkTWAP/null-granularity');
@@ -67,16 +104,19 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
           'ChainlinkTWAP/window-not-evenly-divisible'
         );
 
-        lastUpdateTime      = now;
-        windowSize          = windowSize_;
-        maxWindowSize       = maxWindowSize_;
-        granularity         = granularity_;
-        multiplier          = multiplier_;
+        authorizedAccounts[msg.sender] = 1;
 
-        chainlinkAggregator = AggregatorInterface(aggregator);
+        lastUpdateTime                 = now;
+        windowSize                     = windowSize_;
+        maxWindowSize                  = maxWindowSize_;
+        granularity                    = granularity_;
+        multiplier                     = multiplier_;
 
-        emit ModifyParameters(bytes32("maxWindowSize"), maxWindowSize);
-        emit ModifyParameters(bytes32("aggregator"), aggregator);
+        chainlinkAggregator            = AggregatorInterface(aggregator);
+
+        emit AddAuthorization(msg.sender);
+        emit ModifyParameters("maxWindowSize", maxWindowSize);
+        emit ModifyParameters("aggregator", aggregator);
     }
 
     // --- Boolean Utils ---
@@ -126,23 +166,7 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     * @param data The new parameter value
     */
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") {
-          require(data <= maxUpdateCallerReward, "ChainlinkTWAP/invalid-base-reward");
-          baseUpdateCallerReward = data;
-        }
-        else if (parameter == "maxUpdateCallerReward") {
-          require(data >= baseUpdateCallerReward, "ChainlinkTWAP/invalid-max-reward");
-          maxUpdateCallerReward = data;
-        }
-        else if (parameter == "perSecondCallerRewardIncrease") {
-          require(data >= RAY, "ChainlinkTWAP/invalid-reward-increase");
-          perSecondCallerRewardIncrease = data;
-        }
-        else if (parameter == "maxRewardIncreaseDelay") {
-          require(data > 0, "ChainlinkTWAP/invalid-max-increase-delay");
-          maxRewardIncreaseDelay = data;
-        }
-        else if (parameter == "maxWindowSize") {
+        if (parameter == "maxWindowSize") {
           require(data > windowSize, 'ChainlinkTWAP/invalid-max-window-size');
           maxWindowSize = data;
         }
@@ -160,9 +184,8 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     */
     function modifyParameters(bytes32 parameter, address addr) external isAuthorized {
         if (parameter == "aggregator") chainlinkAggregator = AggregatorInterface(addr);
-        else if (parameter == "treasury") {
-          require(StabilityFeeTreasuryLike(addr).systemCoin() != address(0), "ChainlinkTWAP/treasury-coin-not-set");
-      	  treasury = StabilityFeeTreasuryLike(addr);
+        else if (parameter == "rewardRelayer") {
+          rewardRelayer = IncreasingRewardRelayerLike(addr);
         }
         else revert("ChainlinkTWAP/modify-unrecognized-param");
         emit ModifyParameters(parameter, addr);
@@ -195,6 +218,8 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
     * @param feeReceiver The address that will receive a SF payout for calling this function
     */
     function updateResult(address feeReceiver) external {
+        require(address(rewardRelayer) != address(0), "ChainlinkTWAP/null-reward-relayer");
+
         uint256 elapsedTime = (chainlinkObservations.length == 0) ?
           subtract(now, lastUpdateTime) : subtract(now, chainlinkObservations[chainlinkObservations.length - 1].timestamp);
 
@@ -206,9 +231,6 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
 
         require(aggregatorResult > 0, "ChainlinkTWAP/invalid-feed-result");
         require(both(aggregatorTimestamp > 0, aggregatorTimestamp > linkAggregatorTimestamp), "ChainlinkTWAP/invalid-timestamp");
-
-        // Calculate the reward
-        uint256 callerReward    = getCallerReward(lastUpdateTime, periodSize);
 
         // Get current first observation timestamp
         uint256 timeSinceFirst;
@@ -230,8 +252,11 @@ contract ChainlinkTWAP is IncreasingTreasuryReimbursement {
 
         emit UpdateResult(medianResult);
 
+        // Get final fee receiver
+        address finalFeeReceiver = (feeReceiver == address(0)) ? msg.sender : feeReceiver;
+
         // Send the reward
-        rewardCaller(feeReceiver, callerReward);
+        rewardRelayer.reimburseCaller(finalFeeReceiver);
     }
     /**
     * @notice Push new observation data in the observation array

@@ -1,12 +1,43 @@
 pragma solidity 0.6.7;
 
-import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
+import "geb-treasury-reimbursement/math/GebMath.sol";
 
 import "./link/AggregatorInterface.sol";
 
-contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
+abstract contract IncreasingRewardRelayerLike {
+    function reimburseCaller(address) virtual external;
+}
+
+contract ChainlinkPriceFeedMedianizer is GebMath {
+    // --- Auth ---
+    mapping (address => uint) public authorizedAccounts;
+    /**
+     * @notice Add auth to an account
+     * @param account Account to add auth to
+     */
+    function addAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 1;
+        emit AddAuthorization(account);
+    }
+    /**
+     * @notice Remove auth from an account
+     * @param account Account to remove auth from
+     */
+    function removeAuthorization(address account) virtual external isAuthorized {
+        authorizedAccounts[account] = 0;
+        emit RemoveAuthorization(account);
+    }
+    /**
+    * @notice Checks whether msg.sender can call an authed function
+    **/
+    modifier isAuthorized {
+        require(authorizedAccounts[msg.sender] == 1, "ChainlinkPriceFeedMedianizer/account-not-authorized");
+        _;
+    }
+
     // --- Variables ---
     AggregatorInterface public chainlinkAggregator;
+    IncreasingRewardRelayerLike public rewardRelayer;
 
     // Delay between updates after which the reward starts to increase
     uint256 public periodSize;
@@ -24,26 +55,35 @@ contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
     bytes32 public symbol         = "ethusd";
 
     // --- Events ---
+    event AddAuthorization(address account);
+    event RemoveAuthorization(address account);
+    event ModifyParameters(
+      bytes32 parameter,
+      address addr
+    );
+    event ModifyParameters(
+      bytes32 parameter,
+      uint256 val
+    );
     event UpdateResult(uint256 medianPrice, uint256 lastUpdateTime);
 
     constructor(
       address aggregator,
-      address treasury_,
-      uint256 periodSize_,
-      uint256 baseUpdateCallerReward_,
-      uint256 maxUpdateCallerReward_,
-      uint256 perSecondCallerRewardIncrease_
-    ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
+      uint256 periodSize_
+    ) public {
         require(aggregator != address(0), "ChainlinkPriceFeedMedianizer/null-aggregator");
         require(multiplier >= 1, "ChainlinkPriceFeedMedianizer/null-multiplier");
         require(periodSize_ > 0, "ChainlinkPriceFeedMedianizer/null-period-size");
 
-        lastUpdateTime      = now;
-        periodSize          = periodSize_;
-        chainlinkAggregator = AggregatorInterface(aggregator);
+        authorizedAccounts[msg.sender] = 1;
 
-        emit ModifyParameters(bytes32("periodSize"), periodSize);
-        emit ModifyParameters(bytes32("aggregator"), aggregator);
+        lastUpdateTime                 = now;
+        periodSize                     = periodSize_;
+        chainlinkAggregator            = AggregatorInterface(aggregator);
+
+        emit AddAuthorization(msg.sender);
+        emit ModifyParameters("periodSize", periodSize);
+        emit ModifyParameters("aggregator", aggregator);
     }
 
     // --- General Utils ---
@@ -52,24 +92,13 @@ contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
     }
 
     // --- Administration ---
+    /*
+    * @notify Modify an uin256 parameter
+    * @param parameter The name of the parameter to change
+    * @param data The new parameter value
+    */
     function modifyParameters(bytes32 parameter, uint256 data) external isAuthorized {
-        if (parameter == "baseUpdateCallerReward") {
-          require(data <= maxUpdateCallerReward, "ChainlinkPriceFeedMedianizer/invalid-base-reward");
-          baseUpdateCallerReward = data;
-        }
-        else if (parameter == "maxUpdateCallerReward") {
-          require(data >= baseUpdateCallerReward, "ChainlinkPriceFeedMedianizer/invalid-max-reward");
-          maxUpdateCallerReward = data;
-        }
-        else if (parameter == "perSecondCallerRewardIncrease") {
-          require(data >= RAY, "ChainlinkPriceFeedMedianizer/invalid-reward-increase");
-          perSecondCallerRewardIncrease = data;
-        }
-        else if (parameter == "maxRewardIncreaseDelay") {
-          require(data > 0, "ChainlinkPriceFeedMedianizer/invalid-max-increase-delay");
-          maxRewardIncreaseDelay = data;
-        }
-        else if (parameter == "periodSize") {
+        if (parameter == "periodSize") {
           require(data > 0, "ChainlinkPriceFeedMedianizer/null-period-size");
           periodSize = data;
         }
@@ -80,39 +109,63 @@ contract ChainlinkPriceFeedMedianizer is IncreasingTreasuryReimbursement {
         else revert("ChainlinkPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, data);
     }
+    /*
+    * @notify Modify an address parameter
+    * @param parameter The name of the parameter to change
+    * @param addr The new parameter address
+    */
     function modifyParameters(bytes32 parameter, address addr) external isAuthorized {
         if (parameter == "aggregator") chainlinkAggregator = AggregatorInterface(addr);
-        else if (parameter == "treasury") {
-          require(StabilityFeeTreasuryLike(addr).systemCoin() != address(0), "ChainlinkPriceFeedMedianizer/treasury-coin-not-set");
-      	  treasury = StabilityFeeTreasuryLike(addr);
+        else if (parameter == "rewardRelayer") {
+          rewardRelayer = IncreasingRewardRelayerLike(addr);
         }
         else revert("ChainlinkPriceFeedMedianizer/modify-unrecognized-param");
         emit ModifyParameters(parameter, addr);
     }
 
+    // --- Main Getters ---
+    /**
+    * @notice Fetch the latest medianResult or revert if is is null
+    **/
     function read() external view returns (uint256) {
         require(both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)), "ChainlinkPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
-
+    /**
+    * @notice Fetch the latest medianResult and whether it is null or not
+    **/
     function getResultWithValidity() external view returns (uint256,bool) {
         return (medianPrice, both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)));
     }
 
     // --- Median Updates ---
+    /*
+    * @notify Update the median price
+    * @param feeReceiver The address that will receive a SF payout for calling this function
+    */
     function updateResult(address feeReceiver) external {
+        // The relayer must not be null
+        require(address(rewardRelayer) != address(0), "ChainlinkPriceFeedMedianizer/null-reward-relayer");
+
         int256 aggregatorPrice      = chainlinkAggregator.latestAnswer();
         uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
 
+        // Perform price and time checks
         require(aggregatorPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");
         require(both(aggregatorTimestamp > 0, aggregatorTimestamp > linkAggregatorTimestamp), "ChainlinkPriceFeedMedianizer/invalid-timestamp");
 
-        uint256 callerReward    = getCallerReward(lastUpdateTime, periodSize);
+        // Update state
         medianPrice             = multiply(uint(aggregatorPrice), 10 ** uint(multiplier));
         linkAggregatorTimestamp = aggregatorTimestamp;
         lastUpdateTime          = now;
 
+        // Emit the event
         emit UpdateResult(medianPrice, lastUpdateTime);
-        rewardCaller(feeReceiver, callerReward);
+
+        // Get final fee receiver
+        address finalFeeReceiver = (feeReceiver == address(0)) ? msg.sender : feeReceiver;
+
+        // Send the reward
+        rewardRelayer.reimburseCaller(finalFeeReceiver);
     }
 }
