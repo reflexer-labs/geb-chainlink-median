@@ -115,6 +115,7 @@ contract ChainlinkPriceFeedMedianizer is GebMath {
     * @param addr The new parameter address
     */
     function modifyParameters(bytes32 parameter, address addr) external isAuthorized {
+        require(addr != address(0), "ChainlinkPriceFeedMedianizer/null-addr");
         if (parameter == "aggregator") chainlinkAggregator = AggregatorInterface(addr);
         else if (parameter == "rewardRelayer") {
           rewardRelayer = IncreasingRewardRelayerLike(addr);
@@ -125,14 +126,14 @@ contract ChainlinkPriceFeedMedianizer is GebMath {
 
     // --- Main Getters ---
     /**
-    * @notice Fetch the latest medianResult or revert if is is null
+    * @notice Fetch the latest medianResult or revert if is is invalid
     **/
     function read() external view returns (uint256) {
         require(both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)), "ChainlinkPriceFeedMedianizer/invalid-price-feed");
         return medianPrice;
     }
     /**
-    * @notice Fetch the latest medianResult and whether it is null or not
+    * @notice Fetch the latest medianResult and whether it is valid or not
     **/
     function getResultWithValidity() external view returns (uint256,bool) {
         return (medianPrice, both(medianPrice > 0, subtract(now, linkAggregatorTimestamp) <= multiply(periodSize, staleThreshold)));
