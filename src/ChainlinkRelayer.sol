@@ -108,7 +108,7 @@ contract ChainlinkRelayer is GebMath {
     **/
     function read() external view returns (uint256) {
         // The relayer must not be null
-        require(address(chainlinkAggregator) != address(0), "ChainlinkRelayer/null-median");
+        require(address(chainlinkAggregator) != address(0), "ChainlinkRelayer/null-aggregator");
 
         // Fetch values from Chainlink
         uint256 medianPrice         = multiply(uint(chainlinkAggregator.latestAnswer()), 10 ** uint(multiplier));
