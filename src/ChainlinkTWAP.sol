@@ -106,7 +106,6 @@ contract ChainlinkTWAP is GebMath {
 
         authorizedAccounts[msg.sender] = 1;
 
-        lastUpdateTime                 = now;
         windowSize                     = windowSize_;
         maxWindowSize                  = maxWindowSize_;
         granularity                    = granularity_;
@@ -221,7 +220,7 @@ contract ChainlinkTWAP is GebMath {
         require(address(rewardRelayer) != address(0), "ChainlinkTWAP/null-reward-relayer");
 
         uint256 elapsedTime = (chainlinkObservations.length == 0) ?
-          subtract(now, lastUpdateTime) : subtract(now, chainlinkObservations[chainlinkObservations.length - 1].timestamp);
+          periodSize : subtract(now, chainlinkObservations[chainlinkObservations.length - 1].timestamp);
 
         // Check delay between calls
         require(elapsedTime >= periodSize, "ChainlinkTWAP/wait-more");
