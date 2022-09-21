@@ -225,8 +225,7 @@ contract ChainlinkTWAP is GebMath {
         // Check delay between calls
         require(elapsedTime >= periodSize, "ChainlinkTWAP/wait-more");
 
-        int256 aggregatorResult     = chainlinkAggregator.latestAnswer();
-        uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
+        (, int256 aggregatorResult, , uint256 aggregatorTimestamp, ) = chainlinkAggregator.latestRoundData();
 
         require(aggregatorResult > 0, "ChainlinkTWAP/invalid-feed-result");
         require(both(aggregatorTimestamp > 0, aggregatorTimestamp > linkAggregatorTimestamp), "ChainlinkTWAP/invalid-timestamp");

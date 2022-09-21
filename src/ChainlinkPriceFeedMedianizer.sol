@@ -148,8 +148,7 @@ contract ChainlinkPriceFeedMedianizer is GebMath {
         // The relayer must not be null
         require(address(rewardRelayer) != address(0), "ChainlinkPriceFeedMedianizer/null-reward-relayer");
 
-        int256 aggregatorPrice      = chainlinkAggregator.latestAnswer();
-        uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
+        (, int256 aggregatorPrice, , uint256 aggregatorTimestamp, ) = chainlinkAggregator.latestRoundData();
 
         // Perform price and time checks
         require(aggregatorPrice > 0, "ChainlinkPriceFeedMedianizer/invalid-price-feed");

@@ -23,6 +23,15 @@ contract ChainlinkAggregator {
     function modifyParameters(bytes32 parameter, int data) external {
         latestAnswer = data;
     }
+    function latestRoundData() external returns (
+            uint256 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint256 answeredInRound
+    ) {
+        return (0, latestAnswer, 0, latestTimestamp, 0);
+    }
 }
 
 contract ChainlinkPriceFeedMedianizerTest is DSTest {
