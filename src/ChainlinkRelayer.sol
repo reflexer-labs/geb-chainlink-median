@@ -111,11 +111,10 @@ contract ChainlinkRelayer is GebMath {
         require(address(chainlinkAggregator) != address(0), "ChainlinkRelayer/null-aggregator");
 
         // Fetch values from Chainlink
-        uint256 medianPrice         = multiply(uint(chainlinkAggregator.latestAnswer()), 10 ** uint(multiplier));
-        uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
+        (, int256 aggregatorResult, , uint256 aggregatorTimestamp, ) = chainlinkAggregator.latestRoundData();
 
-        require(both(medianPrice > 0, subtract(now, aggregatorTimestamp) <= staleThreshold), "ChainlinkRelayer/invalid-price-feed");
-        return medianPrice;
+        require(both(aggregatorResult > 0, subtract(now, aggregatorTimestamp) <= staleThreshold), "ChainlinkRelayer/invalid-price-feed");
+        return multiply(uint(aggregatorResult), 10 ** uint(multiplier));
     }
     /**
     * @notice Fetch the latest medianResult and whether it is valid or not
@@ -124,10 +123,12 @@ contract ChainlinkRelayer is GebMath {
         if (address(chainlinkAggregator) == address(0)) return (0, false);
 
         // Fetch values from Chainlink
-        uint256 medianPrice         = multiply(uint(chainlinkAggregator.latestAnswer()), 10 ** uint(multiplier));
-        uint256 aggregatorTimestamp = chainlinkAggregator.latestTimestamp();
+        (, int256 aggregatorResult, , uint256 aggregatorTimestamp, ) = chainlinkAggregator.latestRoundData();
 
-        return (medianPrice, both(medianPrice > 0, subtract(now, aggregatorTimestamp) <= staleThreshold));
+        return (
+            multiply(uint(aggregatorResult), 10 ** uint(multiplier)),
+            both(aggregatorResult > 0, subtract(now, aggregatorTimestamp) <= staleThreshold)
+        );
     }
 
     // --- Median Updates ---

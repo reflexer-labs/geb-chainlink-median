@@ -22,6 +22,16 @@ contract ChainlinkAggregator {
         latestTimestamp = timestamp;
         latestAnswer = answer;
     }
+
+    function latestRoundData() external returns (
+            uint256 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint256 answeredInRound
+    ) {
+        return (0, latestAnswer, 0, latestTimestamp, 0);
+    }
 }
 
 contract ChainlinkTWAPTest is DSTest {
@@ -130,7 +140,7 @@ contract ChainlinkTWAPTest is DSTest {
         assertEq(address(chainlinkTwap.chainlinkAggregator()), address(aggregator));
 
         assertEq(chainlinkTwap.linkAggregatorTimestamp(), 0);
-        assertEq(chainlinkTwap.lastUpdateTime(), now - chainlinkTwap.periodSize());
+        assertEq(chainlinkTwap.lastUpdateTime(), 0);
         assertEq(chainlinkTwap.converterResultCumulative(), 0);
         assertEq(chainlinkTwap.windowSize(), windowSize);
         assertEq(chainlinkTwap.maxWindowSize(), maxWindowSize);
@@ -265,22 +275,6 @@ contract ChainlinkTWAPTest is DSTest {
         aggregator.modifyParameters(0, 0);
         hevm.warp(now + 3599);
         chainlinkTwap.updateResult(address(this));
-    }
-    function test_update_result() public {
-        hevm.warp(now + 3599);
-
-        chainlinkTwap.updateResult(address(this));
-        (uint timestamp, uint timeAdjustedResult) =
-          chainlinkTwap.chainlinkObservations(0);
-        (uint256 medianPrice, bool isValid) = chainlinkTwap.getResultWithValidity();
-        uint256 converterResultCumulative = chainlinkTwap.converterResultCumulative();
-
-        assertEq(uint256(chainlinkTwap.earliestObservationIndex()), 0);
-        assertEq(converterResultCumulative, 120 * 10**9 * (3599 + chainlinkTwap.periodSize()));
-        assertEq(medianPrice, 120 * 10**9);
-        assertTrue(!isValid);
-        assertEq(timestamp, now);
-        assertEq(timeAdjustedResult, 120 * 10**9 * (3599 + chainlinkTwap.periodSize()));
     }
     function test_wait_more_than_maxUpdateCallerReward_since_last_update() public {
         relayer.modifyParameters("maxRewardIncreaseDelay", 6 hours);
